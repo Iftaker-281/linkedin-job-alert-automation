@@ -1,0 +1,483 @@
+{
+  "name": "LinkedIn Job Alert Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "linkedin-job-alert",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        -256
+      ],
+      "id": "25078181-f140-4814-8bc4-1196ce3e7e59",
+      "name": "Webhook",
+      "webhookId": "dbb8bba4-8fe2-45ea-badc-be46df020fce"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0c28562b-4bdc-4c02-b473-43b0a9d3e7fa",
+              "name": "jobTitle",
+              "value": "={{ $json.body.jobTitle }}",
+              "type": "string"
+            },
+            {
+              "id": "7bbbef62-6b0d-4cd8-b1e7-3c3ac73da8ec",
+              "name": "location ",
+              "value": "={{ $json.body.location }}",
+              "type": "string"
+            },
+            {
+              "id": "23777ccd-b17e-428b-8e1d-ef693601ee90",
+              "name": "limit ",
+              "value": "={{ $json.body.limit || 20 }}",
+              "type": "string"
+            },
+            {
+              "id": "1ddf0060-4c59-4f7c-8f8a-a61b01365b29",
+              "name": "searchUrl",
+              "value": "={{ \"https://www.linkedin.com/jobs/search/?keywords=\" + encodeURIComponent($json.body.jobTitle) + \"&location=\" + encodeURIComponent($json.body.location) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        -256
+      ],
+      "id": "c548f69d-924c-450c-a5d3-d2e0177bfb8c",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/curious_coder~linkedin-jobs-scraper/runs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "YOUR_APIFY_API_TOKEN_HERE"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"urls\": [\"{{ $json.searchUrl }}\"],\n  \"scrapeCompanyDetails\": true,\n  \"count\": {{ $json['limit '] }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        448,
+        -256
+      ],
+      "id": "1e96c74c-c60f-46c1-b8da-23f3ef90cf76",
+      "name": "Start Apify Actor Run",
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "WMpc56x0LQoDf0ER",
+          "name": "Query Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 45
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        672,
+        -256
+      ],
+      "id": "486ec2f1-66b8-486c-86d2-52a982318d2e",
+      "name": "Wait",
+      "webhookId": "de364cb9-a4bb-46ce-bedb-41bbff13edba"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.apify.com/v2/actor-runs/{{ $('Start Apify Actor Run').item.json.data.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "YOUR_APIFY_API_TOKEN_HERE"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        896,
+        -256
+      ],
+      "id": "62c0fee7-2e62-45ec-ae0f-2e29daa43cfa",
+      "name": "Check Run Status",
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "WMpc56x0LQoDf0ER",
+          "name": "Query Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.apify.com/v2/datasets/{{ $json.data.defaultDatasetId }}/items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "YOUR_APIFY_API_TOKEN_HERE"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1344,
+        -352
+      ],
+      "id": "4d344252-f166-4859-b26d-5ab1b3bf0c5f",
+      "name": "Get Dataset Items",
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "WMpc56x0LQoDf0ER",
+          "name": "Query Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst rows = [];\n\nfor (const item of items) {\n  const d = item.json;\n  rows.push({\n    json: {\n      jobTitle: d.title || '',\n      companyName: d.companyName || '',\n      location: d.location || '',\n      postedTime: d.postedAt || '',\n      jobUrl: d.link || '',\n      companyUrl: d.companyLinkedinUrl || ''\n    }\n  });\n}\n\nreturn rows;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        -352
+      ],
+      "id": "44a5972f-e956-43fd-abd5-9df9c254f4e8",
+      "name": "Process Job Data"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "12Fduc7JM98bGdUZgrmxKdTDVpaNZr8bHKe1LreVoWak",
+          "mode": "list",
+          "cachedResultName": "LinkedIn Job Alert",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12Fduc7JM98bGdUZgrmxKdTDVpaNZr8bHKe1LreVoWak/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Jobs",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12Fduc7JM98bGdUZgrmxKdTDVpaNZr8bHKe1LreVoWak/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Job Title": "={{ $json.jobTitle }}",
+            "Company Name": "={{ $json.companyName }}",
+            "Location": "={{ $json.location }}",
+            "Posted Time": "={{ $json.postedTime }}",
+            "Job URL": "={{ $json.jobUrl }}",
+            "Company URL": "={{ $json.companyUrl }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Job Title",
+              "displayName": "Job Title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company Name",
+              "displayName": "Company Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Location",
+              "displayName": "Location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Posted Time",
+              "displayName": "Posted Time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Job URL",
+              "displayName": "Job URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company URL",
+              "displayName": "Company URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1792,
+        -352
+      ],
+      "id": "fe333ad2-ca5e-4a32-b39b-12e94a1f07b6",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "oqXYwRuvpF1NinLq",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"LinkedIn jobs scraped and saved successfully\",\n  \"jobsSaved\": 20\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2016,
+        -352
+      ],
+      "id": "e6752103-a51d-485a-bf01-3a4aecae512d",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "5266adea-54d1-4119-880e-e82bcb6b4d19",
+              "leftValue": "={{ $json.data.status }}",
+              "rightValue": "SUCCEEDED",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1120,
+        -256
+      ],
+      "id": "fab67fa1-adbe-46d1-9a30-8fa9c5646535",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": false,\n  \"message\": \"Apify actor run did not complete successfully\",\n  \"status\": \"{{ $json.data.status }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1344,
+        -160
+      ],
+      "id": "93ef7b7f-df6e-4baa-8b3b-6993318db5d0",
+      "name": "Respond to Webhook1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Start Apify Actor Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Apify Actor Run": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Check Run Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Run Status": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Dataset Items": {
+      "main": [
+        [
+          {
+            "node": "Process Job Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Job Data": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook": {
+      "main": [
+        []
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Get Dataset Items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "789d8392-d2b3-4daf-b454-a841dbc377b0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "63f22e7d515696890bb5b4dd9957561694174dcdbd7eee6eaf417677debfb1c9"
+  },
+  "nodeGroups": [],
+  "id": "NJCn0IEy4LIHAAC0",
+  "tags": []
+}
